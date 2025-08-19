@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "982126614055",
+    "project_id": "safe-alert-6eb20",
+    "storage_bucket": "safe-alert-6eb20.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:982126614055:android:d4c0d4d9115b03a7ab6002",
+        "android_client_info": {
+          "package_name": "com.example.safe_alert"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD_OhbAtKde_9i7fliAvgoUmmngJ9yw3a4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
