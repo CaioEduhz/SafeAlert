@@ -1,12 +1,15 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:safe_alert/screens/main_navigation.dart';
 
-
 class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
+
   @override
-  _RegisterScreenState createState() => _RegisterScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
 class _RegisterScreenState extends State<RegisterScreen> {
@@ -23,7 +26,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
   bool _carregando = false;
 
   Future<void> _registrarUsuario() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     final nome = _nomeController.text.trim();
     final email = _emailController.text.trim();
@@ -51,17 +56,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'criado_em': Timestamp.now(),
       });
 
-      // 3. Redireciona para tela inicial
+      // --- CORREÇÃO APLICADA AQUI ---
+      // 3. Removida a linha 'print'
+      // A chamada para guardar o token de notificação foi removida,
+      // pois estamos a reverter essa funcionalidade.
+
+      // 4. Adicionada a verificação 'mounted' antes de usar o BuildContext
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => MainNavigation()),
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
       );
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Erro ao cadastrar')),
       );
     } finally {
-      setState(() => _carregando = false);
+      if (mounted) {
+        setState(() => _carregando = false);
+      }
     }
   }
 
@@ -69,17 +84,19 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      appBar: AppBar(title: Text('Cadastro', 
-              style: TextStyle(
-              color: Colors.white,
-              ),
-              ), 
-              backgroundColor: Colors.black, 
-              leading: BackButton(),
-              iconTheme: IconThemeData(
-                color: Colors.white,
-              ),
-              ),
+      appBar: AppBar(
+        title: const Text(
+          'Cadastro',
+          style: TextStyle(
+            color: Colors.white,
+          ),
+        ),
+        backgroundColor: Colors.black,
+        leading: const BackButton(),
+        iconTheme: const IconThemeData(
+          color: Colors.white,
+        ),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -88,63 +105,60 @@ class _RegisterScreenState extends State<RegisterScreen> {
             children: [
               TextFormField(
                 controller: _nomeController,
-                decoration: InputDecoration(labelText: 'Nome completo ou apelido'),
+                decoration: const InputDecoration(labelText: 'Nome completo ou apelido'),
                 validator: (value) => value == null || value.isEmpty ? 'Informe seu nome' : null,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _emailController,
-                decoration: InputDecoration(labelText: 'E-mail'),
+                decoration: const InputDecoration(labelText: 'E-mail'),
                 keyboardType: TextInputType.emailAddress,
                 validator: (value) =>
                     value == null || !value.contains('@') ? 'Informe um e-mail válido' : null,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _senhaController,
-                decoration: InputDecoration(labelText: 'Senha'),
+                decoration: const InputDecoration(labelText: 'Senha'),
                 obscureText: true,
                 validator: (value) =>
                     value != null && value.length >= 6 ? null : 'Mínimo 6 caracteres',
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _confirmarSenhaController,
-                decoration: InputDecoration(labelText: 'Confirmar senha'),
+                decoration: const InputDecoration(labelText: 'Confirmar senha'),
                 obscureText: true,
                 validator: (value) => value != _senhaController.text ? 'As senhas não coincidem' : null,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               TextFormField(
                 controller: _telefoneController,
-                decoration: InputDecoration(labelText: 'Telefone'),
+                decoration: const InputDecoration(labelText: 'Telefone'),
                 keyboardType: TextInputType.phone,
                 validator: (value) => value == null || value.isEmpty ? 'Informe o telefone' : null,
               ),
-              SizedBox(height: 12),
+              const SizedBox(height: 12),
               DropdownButtonFormField<String>(
                 value: _generoSelecionado,
                 dropdownColor: Colors.white,
-                decoration: InputDecoration(labelText: 'Gênero (opcional)'),
+                decoration: const InputDecoration(labelText: 'Gênero (opcional)'),
                 items: ['Masculino', 'Feminino', 'Outro', 'Prefiro não dizer']
                     .map((g) => DropdownMenuItem(value: g, child: Text(g)))
                     .toList(),
                 onChanged: (valor) => setState(() => _generoSelecionado = valor),
               ),
-              SizedBox(height: 24),
+              const SizedBox(height: 24),
               ElevatedButton(
                 onPressed: _carregando ? null : _registrarUsuario,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 48),
+                  minimumSize: const Size(double.infinity, 48),
                   backgroundColor: Colors.black,
+                  foregroundColor: Colors.white,
                 ),
                 child: _carregando
-                    ? CircularProgressIndicator(color: Colors.white)
-                    : Text('Registrar', 
-                    style: TextStyle(
-                        color: Colors.white, 
-                        ),
-                        ),
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Registrar'),
               ),
             ],
           ),
@@ -153,3 +167,4 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 }
+

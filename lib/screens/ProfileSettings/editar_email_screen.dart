@@ -1,37 +1,80 @@
-// ignore_for_file: use_build_context_synchronously, deprecated_member_use, library_private_types_in_public_api
+// ignore_for_file: use_build_context_synchronously
 
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-
 
 class EditarEmailScreen extends StatefulWidget {
   const EditarEmailScreen({super.key});
 
   @override
-  _EditarEmailScreenState createState() => _EditarEmailScreenState();
+  State<EditarEmailScreen> createState() => _EditarEmailScreenState();
 }
 
 class _EditarEmailScreenState extends State<EditarEmailScreen> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _isLoading = false;
 
-  void _atualizarEmail() async {
-    if (_formKey.currentState!.validate()) {
-      final user = FirebaseAuth.instance.currentUser;
-      final credenciais = EmailAuthProvider.credential(
-        email: user!.email!,
-        password: _senhaController.text.trim(),
-      );
+  Future<void> _atualizarEmail() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
-      try {
-        await user.reauthenticateWithCredential(credenciais);
-        await user.updateEmail(_emailController.text.trim());
-        Navigator.pop(context);
-      } catch (e) {
+    setState(() => _isLoading = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar e-mail: $e')),
+          const SnackBar(content: Text('Nenhum usuário logado.')),
         );
+        setState(() => _isLoading = false);
+      }
+      return;
+    }
+    
+    final newEmail = _emailController.text.trim();
+    final currentPassword = _senhaController.text.trim();
+
+    try {
+      final credenciais = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+      await user.reauthenticateWithCredential(credenciais);
+
+      await user.verifyBeforeUpdateEmail(newEmail);
+      
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('E-mail de verificação enviado! Por favor, confirme no seu novo e-mail para concluir a alteração.'),
+          duration: Duration(seconds: 5),
+        ),
+      );
+      
+      Navigator.pop(context);
+
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      
+      String mensagemErro;
+      if (e.code == 'wrong-password') {
+        mensagemErro = 'A senha atual está incorreta. Tente novamente.';
+      } else if (e.code == 'email-already-in-use') {
+        mensagemErro = 'Este e-mail já está sendo usado por outra conta.';
+      } else {
+        mensagemErro = 'Ocorreu um erro. Tente novamente mais tarde.';
+        // A linha 'print' foi removida daqui
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mensagemErro)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -41,8 +84,9 @@ class _EditarEmailScreenState extends State<EditarEmailScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Alterar E-mail'),
+        title: const Text('Alterar E-mail'),
         backgroundColor: Colors.white,
+        elevation: 1,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
@@ -52,27 +96,34 @@ class _EditarEmailScreenState extends State<EditarEmailScreen> {
             children: [
               TextFormField(
                 controller: _emailController,
-                decoration: InputDecoration(labelText: 'Novo e-mail'),
+                decoration: const InputDecoration(labelText: 'Novo e-mail'),
                 keyboardType: TextInputType.emailAddress,
-                validator: (value) =>
-                    value!.isEmpty ? 'Informe um e-mail válido' : null,
+                validator: (value) {
+                  if (value == null || value.isEmpty || !value.contains('@')) {
+                    return 'Informe um e-mail válido';
+                  }
+                  return null;
+                },
               ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _senhaController,
-                decoration: InputDecoration(labelText: 'Senha atual'),
+                decoration: const InputDecoration(labelText: 'Senha atual'),
                 obscureText: true,
                 validator: (value) =>
-                    value!.isEmpty ? 'Informe sua senha atual' : null,
+                    value == null || value.isEmpty ? 'Informe sua senha atual' : null,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _atualizarEmail,
+                onPressed: _isLoading ? null : _atualizarEmail,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 48),
+                  minimumSize: const Size(double.infinity, 48),
                   backgroundColor: Colors.black,
-                ), 
-                child: Text('Salvar', 
-                style: TextStyle(color: Colors.white),),
+                  foregroundColor: Colors.white,
+                ),
+                child: _isLoading
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Salvar'),
               )
             ],
           ),
@@ -81,3 +132,4 @@ class _EditarEmailScreenState extends State<EditarEmailScreen> {
     );
   }
 }
+

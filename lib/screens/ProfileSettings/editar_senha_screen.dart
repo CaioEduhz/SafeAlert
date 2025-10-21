@@ -1,32 +1,73 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 class EditarSenhaScreen extends StatefulWidget {
+  // 1ª CORREÇÃO: Adicionado o construtor com a chave (key)
+  const EditarSenhaScreen({super.key});
+
   @override
-  _EditarSenhaScreenState createState() => _EditarSenhaScreenState();
+  // 2ª CORREÇÃO: O tipo do State agora é público
+  State<EditarSenhaScreen> createState() => _EditarSenhaScreenState();
 }
 
 class _EditarSenhaScreenState extends State<EditarSenhaScreen> {
   final _senhaAtualController = TextEditingController();
   final _novaSenhaController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
+  bool _carregando = false;
 
-  void _atualizarSenha() async {
-    if (_formKey.currentState!.validate()) {
-      final user = FirebaseAuth.instance.currentUser;
+  Future<void> _atualizarSenha() async {
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
+
+    setState(() => _carregando = true);
+
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Nenhum usuário logado.')),
+        );
+        setState(() => _carregando = false);
+      }
+      return;
+    }
+    
+    final currentPassword = _senhaAtualController.text.trim();
+    final newPassword = _novaSenhaController.text.trim();
+
+    try {
       final credenciais = EmailAuthProvider.credential(
-        email: user!.email!,
-        password: _senhaAtualController.text.trim(),
+        email: user.email!,
+        password: currentPassword,
       );
 
-      try {
-        await user.reauthenticateWithCredential(credenciais);
-        await user.updatePassword(_novaSenhaController.text.trim());
-        Navigator.pop(context);
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erro ao atualizar senha: $e')),
-        );
+      await user.reauthenticateWithCredential(credenciais);
+      await user.updatePassword(newPassword);
+
+      // 3ª CORREÇÃO: Adicionada a verificação 'mounted'
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Senha atualizada com sucesso!')),
+      );
+      Navigator.pop(context);
+
+    } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+      String mensagemErro = 'Ocorreu um erro ao atualizar a senha.';
+      if (e.code == 'wrong-password') {
+        mensagemErro = 'A senha atual está incorreta.';
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(mensagemErro)),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _carregando = false);
       }
     }
   }
@@ -36,8 +77,10 @@ class _EditarSenhaScreenState extends State<EditarSenhaScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
-        title: Text('Alterar Senha'),
-        backgroundColor: Colors.white,),
+        title: const Text('Alterar Senha'),
+        backgroundColor: Colors.white,
+        elevation: 1,
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
@@ -46,25 +89,30 @@ class _EditarSenhaScreenState extends State<EditarSenhaScreen> {
             children: [
               TextFormField(
                 controller: _senhaAtualController,
-                decoration: InputDecoration(labelText: 'Senha atual'),
+                decoration: const InputDecoration(labelText: 'Senha atual'),
                 obscureText: true,
-                validator: (value) => value!.isEmpty ? 'Informe sua senha atual' : null,
+                validator: (value) =>
+                    value == null || value.isEmpty ? 'Informe sua senha atual' : null,
               ),
+              const SizedBox(height: 16),
               TextFormField(
                 controller: _novaSenhaController,
-                decoration: InputDecoration(labelText: 'Nova senha'),
+                decoration: const InputDecoration(labelText: 'Nova senha'),
                 obscureText: true,
-                validator: (value) => value!.length < 6 ? 'Mínimo 6 caracteres' : null,
+                validator: (value) =>
+                    value == null || value.length < 6 ? 'Mínimo 6 caracteres' : null,
               ),
-              SizedBox(height: 20),
+              const SizedBox(height: 32),
               ElevatedButton(
-                onPressed: _atualizarSenha,
+                onPressed: _carregando ? null : _atualizarSenha,
                 style: ElevatedButton.styleFrom(
-                  minimumSize: Size(double.infinity, 48),
+                  minimumSize: const Size(double.infinity, 48),
                   backgroundColor: Colors.black,
-                ), 
-                child: Text('Salvar',
-                style: TextStyle(color: Colors.white),),
+                  foregroundColor: Colors.white,
+                ),
+                child: _carregando
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('Salvar'),
               )
             ],
           ),

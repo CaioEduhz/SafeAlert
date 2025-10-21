@@ -43,3 +43,19 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Arquivos de compilação do Flutter
+/build/
+/.dart_tool/
+
+# Arquivos de compilação do Android
+/android/app/build/
+/android/.gradle/
+
+# Arquivos de compilação do iOS
+/ios/Pods/
+/ios/.symlinks/
+
+# Outros
+*.DS_Store
+pubspec.lock

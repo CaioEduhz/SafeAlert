@@ -3,27 +3,28 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:location/location.dart' as loc;
-import 'package:permission_handler/permission_handler.dart' as perm;
-import 'package:flutter_sound/flutter_sound.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
+import 'package:local_auth/local_auth.dart';
+import 'package:flutter/services.dart';
 
 class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
   @override
-  _HomeScreenState createState() => _HomeScreenState();
+  State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
   bool alertaAtivado = false;
-  Timer? _timer;
+  Timer? _pressTimer;
+  Timer? _locationUpdateTimer;
+
   late AnimationController _animController;
   late Animation<Color?> _colorAnimation;
 
-  FlutterSoundRecorder _recorder = FlutterSoundRecorder();
-  bool _gravando = false;
-
   final user = FirebaseAuth.instance.currentUser;
   String? nomeUsuario;
+
+  final LocalAuthentication auth = LocalAuthentication();
 
   @override
   void initState() {
@@ -31,14 +32,52 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     _buscarNomeUsuario();
 
     _animController = AnimationController(
-      duration: Duration(seconds: 3),
+      duration: const Duration(seconds: 3),
       vsync: this,
     );
 
     _colorAnimation = ColorTween(
-      begin: Color(0xFFF4F0E8),
+      begin: const Color(0xFFF4F0E8),
       end: Colors.red,
     ).animate(_animController);
+
+    // MUDANÇA: Verifica o estado do alerta no Firestore ao iniciar a tela.
+    _verificarEstadoDoAlertaInicial(); 
+  }
+
+  // MUDANÇA: Nova função para verificar o estado do alerta.
+  Future<void> _verificarEstadoDoAlertaInicial() async {
+    if (user == null) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance.collection('alertasAtivos').doc(user!.uid).get();
+
+      if (doc.exists && mounted) {
+        final data = doc.data() as Map<String, dynamic>;
+        // Se o documento no Firebase diz que o alerta está ativo...
+        if (data['ativo'] == true) {
+          // ... atualizamos o estado da tela para refletir isso.
+          setState(() {
+            alertaAtivado = true;
+          });
+          // Avança a animação para o final (botão vermelho)
+          _animController.forward(from: 1.0);
+          // Reinicia o compartilhamento de localização
+          _startLocationUpdates();
+        }
+      }
+    } catch (e) {
+      debugPrint("Erro ao verificar estado do alerta: $e");
+    }
+  }
+
+
+  @override
+  void dispose() {
+    _pressTimer?.cancel();
+    _locationUpdateTimer?.cancel();
+    _animController.dispose();
+    super.dispose();
   }
 
   Future<void> _buscarNomeUsuario() async {
@@ -47,19 +86,15 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           .collection('usuarios')
           .doc(user!.uid)
           .get();
-
-      setState(() {
-        nomeUsuario = doc['nome'];
-      });
+      if (mounted && doc.exists) {
+        setState(() {
+          final data = doc.data() as Map<String, dynamic>;
+          if (data.containsKey('nome')) {
+            nomeUsuario = data['nome'];
+          }
+        });
+      }
     }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _animController.dispose();
-    _recorder.closeRecorder();
-    super.dispose();
   }
 
   void _segurarParaAtivar() {
@@ -67,92 +102,167 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     _animController.forward();
 
-    _timer = Timer(Duration(seconds: 3), () async {
+    _pressTimer = Timer(const Duration(seconds: 3), () {
       setState(() => alertaAtivado = true);
-      await _capturarLocalizacao();
-      await _iniciarGravacao();
+      _startLocationUpdates();
+      _enviarChamadosIniciais();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Alerta ativado! A partilhar localização..."))
+        );
+      }
     });
   }
 
   void _cancelarAtivacao() {
     if (!alertaAtivado) {
-      _timer?.cancel();
+      _pressTimer?.cancel();
       _animController.reverse();
     }
   }
 
-  Future<void> _capturarLocalizacao() async {
-    loc.Location location = loc.Location();
+  Future<void> _tentarDesativarAlerta() async {
+    try {
+      final bool didAuthenticate = await auth.authenticate(
+        localizedReason: 'Por favor, autentique-se para desativar o alerta de emergência',
+        options: const AuthenticationOptions(
+          stickyAuth: true,
+          biometricOnly: false,
+        ),
+      );
 
+      if (didAuthenticate && mounted) {
+        _stopLocationUpdates();
+      }
+    } on PlatformException catch (e) {
+      debugPrint("Erro de autenticação: $e");
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Autenticação falhou ou não está configurada.")),
+        );
+      }
+    }
+  }
+
+  Future<void> _enviarChamadosIniciais() async {
+    if (user == null) return;
+
+    final contatosSnapshot = await FirebaseFirestore.instance
+        .collection('usuarios')
+        .doc(user!.uid)
+        .collection('contatos')
+        .get();
+
+    final List<QueryDocumentSnapshot> contatosDeEmergencia = contatosSnapshot.docs;
+
+    if (contatosDeEmergencia.isEmpty && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Você não possui contatos de emergência."))
+        );
+        return;
+    }
+
+    for (var contato in contatosDeEmergencia) {
+      final emailContato = contato['email'];
+      final usuarioDestinoSnapshot = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .where('email', isEqualTo: emailContato)
+          .limit(1)
+          .get();
+
+      if (usuarioDestinoSnapshot.docs.isNotEmpty) {
+        final destinatario = usuarioDestinoSnapshot.docs.first;
+        await FirebaseFirestore.instance.collection('chamados').add({
+          'destinatarioId': destinatario.id,
+          'remetenteNome': nomeUsuario ?? "Alguém",
+          'remetenteId': user!.uid,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+        debugPrint("Chamado enviado para: $emailContato");
+      }
+    }
+  }
+
+  void _startLocationUpdates() {
+    if (user == null) return;
+    final alertaRef = FirebaseFirestore.instance.collection('alertasAtivos').doc(user!.uid);
+    
+    // MUDANÇA: Cancela qualquer timer antigo antes de criar um novo para evitar duplicação.
+    _locationUpdateTimer?.cancel();
+
+    _locationUpdateTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
+      final locData = await _capturarLocalizacao();
+      if (locData != null) {
+        // MUDANÇA: Usamos `update` em vez de `set` para não sobrescrever outros campos.
+        // Se o documento não existir, `set` com `merge` é uma alternativa.
+        // Para este caso, `set` completo é ok, pois ativamos tudo de uma vez.
+        alertaRef.set({
+          'remetenteNome': nomeUsuario ?? "Alguém",
+          'ativo': true,
+          'localizacao': GeoPoint(locData.latitude!, locData.longitude!),
+          'ultimaAtualizacao': FieldValue.serverTimestamp(),
+        });
+      }
+    });
+  }
+
+  void _stopLocationUpdates() {
+    _locationUpdateTimer?.cancel();
+    if(user != null) {
+      FirebaseFirestore.instance
+          .collection('alertasAtivos')
+          .doc(user!.uid)
+          .update({'ativo': false});
+    }
+
+    setState(() => alertaAtivado = false);
+    _animController.reverse();
+    if(mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Alerta desativado com segurança.")),
+      );
+    }
+  }
+
+  Future<loc.LocationData?> _capturarLocalizacao() async {
+    loc.Location location = loc.Location();
     bool serviceEnabled = await location.serviceEnabled();
     if (!serviceEnabled) serviceEnabled = await location.requestService();
+    if (!serviceEnabled) return null;
 
     loc.PermissionStatus permissionGranted = await location.hasPermission();
     if (permissionGranted == loc.PermissionStatus.denied) {
       permissionGranted = await location.requestPermission();
     }
-
     if (permissionGranted == loc.PermissionStatus.granted) {
-      final locData = await location.getLocation();
-      print("📍 Localização: ${locData.latitude}, ${locData.longitude}");
-
-      // Em breve: enviar para Firestore junto do alerta
+      return await location.getLocation();
     }
-  }
-
-  Future<void> _iniciarGravacao() async {
-    final status = await perm.Permission.microphone.request();
-
-    if (status != perm.PermissionStatus.granted) {
-      print("❌ Permissão de microfone negada");
-      return;
-    }
-
-    final dir = await getTemporaryDirectory();
-    final path = '${dir.path}/alerta_gravado.aac';
-
-    await _recorder.openRecorder();
-    await _recorder.startRecorder(toFile: path);
-    _gravando = true;
-
-    print("🎙️ Gravando áudio...");
-
-    Future.delayed(Duration(minutes: 1), () async {
-      if (_gravando) {
-        final filePath = await _recorder.stopRecorder();
-        _gravando = false;
-        print("✅ Gravação salva: $filePath");
-
-        // Upload para Firebase pode ser feito aqui
-      }
-    });
+    return null;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-
       body: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.start,
           children: [
             const SizedBox(height: 20),
-
-            // 👤 Saudação com nome do usuário
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
+                  const Text(
                     "Bem-vindo, ",
                     style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
                   Expanded(
                     child: Text(
                       nomeUsuario ?? "...",
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
@@ -163,13 +273,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ],
               ),
             ),
-
             const Spacer(),
-
             GestureDetector(
-              onTapDown: (_) => _segurarParaAtivar(),
-              onTapUp: (_) => _cancelarAtivacao(),
-              onTapCancel: _cancelarAtivacao,
+              onTap: () {
+                if (alertaAtivado) {
+                  _tentarDesativarAlerta();
+                }
+              },
+              onLongPress: _segurarParaAtivar,
+              onLongPressUp: _cancelarAtivacao,
+
               child: AnimatedBuilder(
                 animation: _animController,
                 builder: (context, child) => Container(
@@ -182,7 +295,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                       BoxShadow(
                         color: Colors.grey.shade300,
                         blurRadius: 10,
-                        offset: Offset(0, 4),
+                        offset: const Offset(0, 4),
                       ),
                     ],
                   ),
@@ -198,25 +311,22 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 ),
               ),
             ),
-
-            SizedBox(height: 24),
-
+            const SizedBox(height: 24),
             Text(
-              alertaAtivado ? 'Botão acionado!' : 'Botão de Alerta',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              alertaAtivado ? 'Alerta Ativado!' : 'Botão de Alerta',
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
             ),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8),
               child: Text(
                 alertaAtivado
-                    ? 'Sua localização em tempo real e uma gravação de áudio de 1 minuto foi enviada ao seu contato de confiança!'
-                    : 'Pressione o botão para enviar um sinal de alerta para seu contato de confiança',
+                    ? 'Toque para desativar. A sua localização está a ser partilhada com os seus contatos.'
+                    : 'Pressione e segure por 3 segundos para enviar um sinal de alerta.',
                 style: TextStyle(color: Colors.grey[700], fontSize: 14),
                 textAlign: TextAlign.center,
               ),
             ),
-
-            Spacer(),
+            const Spacer(),
           ],
         ),
       ),

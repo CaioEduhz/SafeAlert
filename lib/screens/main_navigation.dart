@@ -4,7 +4,6 @@ import 'package:safe_alert/screens/conversas_screen.dart';
 import 'package:safe_alert/screens/profile_screen.dart';
 import 'home_screen.dart';
 import 'Denuncias/denuncias_screen.dart';
-// Adicione aqui outras telas conforme for criando
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -17,11 +16,11 @@ class _MainNavigationState extends State<MainNavigation> {
   int _selectedIndex = 2; // Começa na Home
 
   final List<Widget> _screens = [
-    DenunciasScreen(),         // 0 - ícone de alerta
-    ConversasScreen(),         // 1 - conversas
-    HomeScreen(),          // 2 - tela inicial
-    ChamadosScreen(),         // 3 - notificações
-    ProfileScreen(),     // 4 - perfil (ícone mais à direita)
+    DenunciasScreen(),       // 0 - Denúncias
+    ConversasScreen(),       // 1 - Conversas
+    HomeScreen(),            // 2 - Tela inicial
+    ChamadosScreen(),        // 3 - Chamados
+    ProfileScreen(),         // 4 - Perfil
   ];
 
   void _onItemTapped(int index) {
@@ -36,7 +35,12 @@ class _MainNavigationState extends State<MainNavigation> {
       backgroundColor: Colors.white,
       body: _screens[_selectedIndex],
       bottomNavigationBar: BottomNavigationBar(
-        backgroundColor: Colors.white,
+        // --- ALTERAÇÕES APLICADAS AQUI ---
+        backgroundColor: Colors.white,   // Cor de fundo
+        type: BottomNavigationBarType.fixed, // Garante que a cor de fundo seja aplicada
+        elevation: 0, // Remove qualquer sombra abaixo da barra
+
+        // --- Estilo dos ícones ---
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         selectedItemColor: Colors.black,
@@ -47,7 +51,7 @@ class _MainNavigationState extends State<MainNavigation> {
           BottomNavigationBarItem(icon: Icon(Icons.report), label: 'Denúncias'),
           BottomNavigationBarItem(icon: Icon(Icons.chat), label: 'Conversas'),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Início'),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Notificações'),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: 'Chamados'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Perfil'),
         ],
       ),

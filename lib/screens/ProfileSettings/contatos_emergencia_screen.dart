@@ -11,8 +11,13 @@ class ContatosEmergenciaScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // 1. Cor de fundo alterada para branco
+      backgroundColor: Colors.white,
       appBar: AppBar(
         title: const Text("Contatos de Emergência"),
+        backgroundColor: Colors.white,
+        foregroundColor: Colors.black,
+        elevation: 1,
       ),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance
@@ -21,16 +26,22 @@ class ContatosEmergenciaScreen extends StatelessWidget {
             .collection('contatos')
             .snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting)
+          if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
 
           final contatos = snapshot.data?.docs ?? [];
 
           if (contatos.isEmpty) {
+            // 2. Texto centralizado e com padding para não ficar colado nas bordas
             return const Center(
-              child: Text(
-                "Você ainda não adicionou nenhum contato de emergência.",
-                style: TextStyle(fontSize: 16, color: Colors.grey),
+              child: Padding(
+                padding: EdgeInsets.symmetric(horizontal: 24.0),
+                child: Text(
+                  "Você ainda não adicionou nenhum contato de emergência.",
+                  textAlign: TextAlign.center, // Centraliza o texto
+                  style: TextStyle(fontSize: 16, color: Colors.grey),
+                ),
               ),
             );
           }
@@ -61,8 +72,11 @@ class ContatosEmergenciaScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(context,
-              MaterialPageRoute(builder: (_) => AdicionarContatoScreen()));
+              MaterialPageRoute(builder: (_) => const AdicionarContatoScreen()));
         },
+        // 3. Cores do botão alteradas
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
         child: const Icon(Icons.add),
       ),
     );

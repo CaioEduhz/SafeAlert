@@ -1,13 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:safe_alert/screens/Denuncias/NovaDenunciaScreen.dart';
+import 'package:safe_alert/screens/Denuncias/nova_denuncia_screen.dart';
 import 'package:safe_alert/screens/Login/splash_screen.dart';
 import 'package:safe_alert/screens/Login/login_screen.dart';
 import 'package:safe_alert/screens/home_screen.dart';
 import 'package:safe_alert/screens/chat_screen.dart';
 
+// ▼▼▼ FUNÇÃO CORRIGIDA ▼▼▼
 class AuthCheck extends StatelessWidget {
+  // Adicionado o construtor com a key
+  const AuthCheck({super.key});
+
   @override
   Widget build(BuildContext context) {
     return StreamBuilder<User?>(
@@ -17,13 +21,16 @@ class AuthCheck extends StatelessWidget {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasData) {
-          return HomeScreen();
+          // Adicionado 'const' para melhor performance
+          return const HomeScreen();
         }
-        return LoginScreen();
+        // Adicionado 'const' para melhor performance
+        return const LoginScreen();
       },
     );
   }
 }
+// ▲▲▲ FIM DA CORREÇÃO ▲▲▲
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -61,11 +68,12 @@ class SafeAlertApp extends StatelessWidget {
       ),
       home: const SplashScreen(),
       routes: {
-        '/nova-denuncia': (_) => NovaDenunciaScreen(),
+        // Adicionado 'const' para melhor performance
+        '/nova-denuncia': (_) => const NovaDenunciaScreen(),
         '/chat': (context) {
           final args = ModalRoute.of(context)!.settings.arguments as Map<String, dynamic>;
           return ChatScreen(
-            chatId: args['chatId'], // Pode ser null se vier da denúncia
+            chatId: args['chatId'],
             otherUserId: args['otherUserId'] ?? args['uidDestino'],
             otherUserName: args['otherUserName'] ?? args['nomeDestino'],
           );

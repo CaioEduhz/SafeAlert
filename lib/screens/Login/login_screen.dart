@@ -1,13 +1,18 @@
+// ignore_for_file: use_build_context_synchronously
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:safe_alert/screens/main_navigation.dart';
-import 'register_screen.dart';
+import 'registro_screen.dart';
 import 'recuperar_senha_screen.dart';
 
-
 class LoginScreen extends StatefulWidget {
+  // 1ª CORREÇÃO: Adicionado o construtor com a chave (key)
+  const LoginScreen({super.key});
+
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  // 2ª CORREÇÃO: O tipo do State agora é público
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -18,7 +23,9 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _carregando = false;
 
   Future<void> _fazerLogin() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     final email = _emailController.text.trim();
     final senha = _senhaController.text.trim();
@@ -31,16 +38,24 @@ class _LoginScreenState extends State<LoginScreen> {
         password: senha,
       );
 
+      // 3ª CORREÇÃO: Adicionada a verificação 'mounted' antes de usar o BuildContext
+      if (!mounted) return;
+
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => MainNavigation()),
+        MaterialPageRoute(builder: (_) => const MainNavigation()),
       );
     } on FirebaseAuthException catch (e) {
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message ?? 'Erro ao fazer login')),
       );
     } finally {
-      setState(() => _carregando = false);
+      // É uma boa prática adicionar a verificação aqui também
+      if (mounted) {
+        setState(() => _carregando = false);
+      }
     }
   }
 
@@ -60,18 +75,18 @@ class _LoginScreenState extends State<LoginScreen> {
                     key: _formKey,
                     child: Column(
                       children: [
-                        SizedBox(height: 32),
-                        Image.asset('assets/logo_safealert.png', width: 120),
-                        SizedBox(height: 24),
+                        const SizedBox(height: 32),
+                        Image.asset('assets/logo_safealert.png', width: 120), 
+                        const SizedBox(height: 24),
 
-                        Text("Bem-vindo de volta", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
-                        SizedBox(height: 8),
+                        const Text("Bem-vindo de volta", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 8),
                         Text(
                           "Entre com seu e-mail e senha para continuar",
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.grey[600]),
                         ),
-                        SizedBox(height: 24),
+                        const SizedBox(height: 24),
 
                         TextFormField(
                           controller: _emailController,
@@ -79,13 +94,13 @@ class _LoginScreenState extends State<LoginScreen> {
                             labelText: 'E-mail',
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              borderSide:BorderSide(color: Colors.black54)),
+                              borderSide:const BorderSide(color: Colors.black54)),
                           ),
                           validator: (value) =>
                               value == null || !value.contains('@') ? 'Informe um e-mail válido' : null,
                           keyboardType: TextInputType.emailAddress,
                         ),
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
                         TextFormField(
                           controller: _senhaController,
@@ -107,18 +122,18 @@ class _LoginScreenState extends State<LoginScreen> {
                                 MaterialPageRoute(builder: (_) => RecuperarSenhaScreen()),
                               );
                             },
-                            child: Text("Esqueceu a senha?", 
-                                    style: TextStyle(color: Colors.blue),
-                                    ),
+                            child: const Text("Esqueceu a senha?", 
+                                  style: TextStyle(color: Colors.blue),
+                                  ),
                           ),
                         ),
-                                          
-                        SizedBox(height: 24),
+                                        
+                        const SizedBox(height: 24),
 
                         ElevatedButton(
                           onPressed: _carregando ? null : _fazerLogin,
                           style: ElevatedButton.styleFrom(
-                            minimumSize: Size(double.infinity, 48),
+                            minimumSize: const Size(double.infinity, 48),
                             backgroundColor: Colors.black,
                             foregroundColor: Colors.white,
                             shape: RoundedRectangleBorder(
@@ -126,18 +141,18 @@ class _LoginScreenState extends State<LoginScreen> {
                             ),
                           ),
                           child: _carregando
-                              ? CircularProgressIndicator(color: Colors.white)
-                              : Text("Entrar"),
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text("Entrar"),
                         ),
 
-                        Spacer(),
+                        const Spacer(),
 
-                        SizedBox(height: 16),
+                        const SizedBox(height: 16),
 
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text("Não tem uma conta?"),
+                            const Text("Não tem uma conta?"),
                             TextButton(
                               onPressed: () {
                                 Navigator.push(
@@ -145,31 +160,31 @@ class _LoginScreenState extends State<LoginScreen> {
                                   MaterialPageRoute(builder: (_) => RegisterScreen()),
                                 );
                               },
-                              child: Text("Cadastre-se", 
+                              child: const Text("Cadastre-se", 
                               style: TextStyle(color: Colors.blue),),
                             ),
                           ],
                         ),
 
-                        SizedBox(height: 10),
+                        const SizedBox(height: 10),
 
                         Text.rich(
                           TextSpan(
                             text: "Ao continuar, você concorda com nossos\n",
-                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
                             children: [
                               TextSpan(
                                 text: "Termos de Serviço",
-                                style: TextStyle(
+                                style: const TextStyle(
                                   decoration: TextDecoration.underline,
                                   color: Colors.blue,
                                 ),
                                 // TODO: adicionar link
                               ),
-                              TextSpan(text: " e "),
+                              const TextSpan(text: " e "),
                               TextSpan(
                                 text: "Política de Privacidade",
-                                style: TextStyle(
+                                style: const TextStyle(
                                   decoration: TextDecoration.underline,
                                   color: Colors.blue,
                                 ),
@@ -179,8 +194,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                           textAlign: TextAlign.center,
                         ),
-                       
-                        SizedBox(height: 10),
+                        
+                        const SizedBox(height: 10),
 
                       ],
                     ),
@@ -194,3 +209,4 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 }
+

@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:safe_alert/screens/Denuncias/DetalhesDenunciaScreen.dart';
+import 'package:safe_alert/screens/Denuncias/detalhe_denuncia_screen.dart';
 
 class DenunciasScreen extends StatefulWidget {
+  // 1ª CORREÇÃO: Adicionado o construtor com a chave (key)
+  const DenunciasScreen({super.key});
+
   @override
-  _DenunciasScreenState createState() => _DenunciasScreenState();
+  // 2ª CORREÇÃO: O tipo do State agora é público
+  State<DenunciasScreen> createState() => _DenunciasScreenState();
 }
 
 class _DenunciasScreenState extends State<DenunciasScreen> {
@@ -21,13 +25,32 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
   String zonaSelecionada = 'Zona Leste';
   String? bairroSelecionado;
 
+  // NOVA FUNÇÃO: Formata o tempo de postagem de acordo com as novas regras
+  String _formatarTempoPostagem(Duration tempoPostagem) {
+    if (tempoPostagem.inDays > 0) {
+      return '${tempoPostagem.inDays}d';
+    } else if (tempoPostagem.inHours > 0) {
+      final horas = tempoPostagem.inHours;
+      final minutos = tempoPostagem.inMinutes % 60;
+      if (minutos == 0) {
+        return '${horas}h'; // Mostra apenas a hora se os minutos forem 0
+      }
+      return '${horas}h ${minutos}m'; // Mostra horas e minutos
+    } else {
+      // Se tiver menos de 1 hora, mostra apenas os minutos
+      final minutos = tempoPostagem.inMinutes;
+      return '${minutos}m';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final bairros = bairrosPorZona[zonaSelecionada] ?? [];
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Denúncias', style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+        title: const Text('Denúncias',
+            style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
@@ -64,7 +87,8 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
                         });
                       },
                       selectedColor: Colors.black,
-                      labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.black),
+                      labelStyle: TextStyle(
+                          color: isSelected ? Colors.white : Colors.black),
                       backgroundColor: Colors.grey.shade200,
                     ),
                   );
@@ -104,7 +128,8 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
                   }
 
                   if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-                    return const Center(child: Text('Nenhuma denúncia encontrada.'));
+                    return const Center(
+                        child: Text('Nenhuma denúncia encontrada.'));
                   }
 
                   final denuncias = snapshot.data!.docs;
@@ -114,20 +139,20 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
                     itemBuilder: (context, index) {
                       final doc = denuncias[index];
                       final data = doc.data() as Map<String, dynamic>;
+                      final String? uid = data['uid'];
 
-                      final timestamp = (data['timestamp'] as Timestamp).toDate();
+                      final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+                      if (timestamp == null) return const SizedBox(); // Evita erros se o timestamp for nulo
+
                       final tempoPostagem = DateTime.now().difference(timestamp);
+                      // Usa a nova função para formatar o tempo
+                      final tempoFormatado = _formatarTempoPostagem(tempoPostagem);
 
-                      String tempoFormatado;
-
-                      if (tempoPostagem.inHours < 24) {
-                        final horas = tempoPostagem.inHours;
-                        final minutos = tempoPostagem.inMinutes % 60;
-                        tempoFormatado = '$horas h $minutos min';
-                      } else {
-                        final dias = tempoPostagem.inDays;
-                        tempoFormatado = '$dias d';
-                      }
+                      // Lógica para obter a primeira imagem da lista
+                      final List<String> imagensUrls = (data['imagens_urls'] as List<dynamic>?)
+                              ?.map((e) => e.toString())
+                              .toList() ?? [];
+                      final String? primeiraImagemUrl = imagensUrls.isNotEmpty ? imagensUrls.first : null;
 
                       return ListTile(
                         onTap: () {
@@ -138,7 +163,23 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
                             ),
                           );
                         },
-                        leading: const CircleAvatar(child: Icon(Icons.person)),
+                          leading: FutureBuilder<DocumentSnapshot>(
+                            // Busca o documento do usuário pelo UID da denúncia
+                            future: uid != null ? FirebaseFirestore.instance.collection('usuarios').doc(uid).get() : null,
+                            builder: (context, userSnapshot) {
+                              // Define uma cor padrão enquanto carrega ou se houver erro
+                              Color corDoPerfil = Colors.grey;
+                              if (userSnapshot.hasData && userSnapshot.data!.exists) {
+                                final userData = userSnapshot.data!.data() as Map<String, dynamic>;
+                                final int corValor = userData['profileColor'] ?? Colors.grey.toARGB32();
+                                corDoPerfil = Color(corValor);
+                              }
+                              return CircleAvatar(
+                                backgroundColor: corDoPerfil,
+                                child: const Icon(Icons.person, color: Colors.white),
+                              );
+                            },
+                          ),
                         title: Text(
                           data['nome_usuario']?.toString().isNotEmpty == true
                               ? data['nome_usuario']
@@ -150,9 +191,9 @@ class _DenunciasScreenState extends State<DenunciasScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: data['imagemUrl'] != null && data['imagemUrl'].toString().isNotEmpty
+                        trailing: primeiraImagemUrl != null
                             ? Image.network(
-                                data['imagemUrl'],
+                                primeiraImagemUrl,
                                 width: 60,
                                 height: 60,
                                 fit: BoxFit.cover,
