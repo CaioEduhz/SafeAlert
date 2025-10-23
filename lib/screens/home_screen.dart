@@ -64,8 +64,8 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
           _animController.forward(from: 1.0);
           // Reinicia o compartilhamento de localização
           _startLocationUpdates();
-        }
-      }
+        } 
+      } 
     } catch (e) {
       debugPrint("Erro ao verificar estado do alerta: $e");
     }
@@ -102,14 +102,16 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
 
     _animController.forward();
 
-    _pressTimer = Timer(const Duration(seconds: 3), () {
+    _pressTimer = Timer(const Duration(seconds: 3), () async {
       setState(() => alertaAtivado = true);
-      _startLocationUpdates();
+
+      await _startLocationUpdates();
+
       _enviarChamadosIniciais();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Alerta ativado! A partilhar localização..."))
+          const SnackBar(content: Text("Alerta ativado! Compartilhando localização..."))
         );
       }
     });
@@ -184,25 +186,37 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _startLocationUpdates() {
+  Future<void> _startLocationUpdates() async { // 1. Função agora é 'async' e 'Future<void>'
     if (user == null) return;
     final alertaRef = FirebaseFirestore.instance.collection('alertasAtivos').doc(user!.uid);
-    
-    // MUDANÇA: Cancela qualquer timer antigo antes de criar um novo para evitar duplicação.
-    _locationUpdateTimer?.cancel();
 
+    // 2. Faz uma captura e escrita IMEDIATA
+    debugPrint("Ativando alerta... Escrevendo no Firestore IMEDIATAMENTE.");
+    final locData = await _capturarLocalizacao();
+    if (locData != null) {
+      // 3. Usa 'set' para criar/sobrescrever o alerta com 'ativo: true'
+      await alertaRef.set({
+        'remetenteNome': nomeUsuario ?? "Alguém",
+        'ativo': true,
+        'localizacao': GeoPoint(locData.latitude!, locData.longitude!),
+        'ultimaAtualizacao': FieldValue.serverTimestamp(),
+      });
+      debugPrint("Primeira escrita no Firestore concluída.");
+    }
+
+    // 4. Cancela qualquer timer antigo
+    _locationUpdateTimer?.cancel();
+    
+    // 5. Inicia o timer para as ATUALIZAÇÕES seguintes
     _locationUpdateTimer = Timer.periodic(const Duration(seconds: 20), (timer) async {
       final locData = await _capturarLocalizacao();
       if (locData != null) {
-        // MUDANÇA: Usamos `update` em vez de `set` para não sobrescrever outros campos.
-        // Se o documento não existir, `set` com `merge` é uma alternativa.
-        // Para este caso, `set` completo é ok, pois ativamos tudo de uma vez.
-        alertaRef.set({
-          'remetenteNome': nomeUsuario ?? "Alguém",
-          'ativo': true,
+        // 6. Usa 'update' para as próximas vezes, apenas para atualizar a localização
+        await alertaRef.update({
           'localizacao': GeoPoint(locData.latitude!, locData.longitude!),
           'ultimaAtualizacao': FieldValue.serverTimestamp(),
         });
+        debugPrint("Localização periódica atualizada.");
       }
     });
   }
@@ -320,7 +334,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
               padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 8),
               child: Text(
                 alertaAtivado
-                    ? 'Toque para desativar. A sua localização está a ser partilhada com os seus contatos.'
+                    ? 'Toque para desativar. A sua localização está sendo compartilhada com os seus contatos.'
                     : 'Pressione e segure por 3 segundos para enviar um sinal de alerta.',
                 style: TextStyle(color: Colors.grey[700], fontSize: 14),
                 textAlign: TextAlign.center,

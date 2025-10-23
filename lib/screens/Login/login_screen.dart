@@ -5,6 +5,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:safe_alert/screens/main_navigation.dart';
 import 'registro_screen.dart';
 import 'recuperar_senha_screen.dart';
+import 'package:flutter/gestures.dart'; // Para TapGestureRecognizer
+import 'package:url_launcher/url_launcher.dart'; // Para abrir o link
 
 class LoginScreen extends StatefulWidget {
   // 1ª CORREÇÃO: Adicionado o construtor com a chave (key)
@@ -38,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
         password: senha,
       );
 
-      // 3ª CORREÇÃO: Adicionada a verificação 'mounted' antes de usar o BuildContext
+     
       if (!mounted) return;
 
       Navigator.pushReplacement(
@@ -52,9 +54,21 @@ class _LoginScreenState extends State<LoginScreen> {
         SnackBar(content: Text(e.message ?? 'Erro ao fazer login')),
       );
     } finally {
-      // É uma boa prática adicionar a verificação aqui também
+
       if (mounted) {
         setState(() => _carregando = false);
+      }
+    }
+  }
+
+  Future<void> _launchURL(String urlString) async {
+    final Uri url = Uri.parse(urlString);
+    if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
+      // Se falhar, mostra uma mensagem
+      if (mounted) {
+         ScaffoldMessenger.of(context).showSnackBar(
+           SnackBar(content: Text('Não foi possível abrir o link: $urlString')),
+         );
       }
     }
   }
@@ -179,7 +193,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   decoration: TextDecoration.underline,
                                   color: Colors.blue,
                                 ),
-                                // TODO: adicionar link
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    _launchURL('https://safe-alert-6eb20.web.app/termos.html');
+                                  },
                               ),
                               const TextSpan(text: " e "),
                               TextSpan(
@@ -188,7 +205,10 @@ class _LoginScreenState extends State<LoginScreen> {
                                   decoration: TextDecoration.underline,
                                   color: Colors.blue,
                                 ),
-                                // TODO: adicionar link
+                                recognizer: TapGestureRecognizer()
+                                  ..onTap = () {
+                                    _launchURL('https://safe-alert-6eb20.web.app/privacidade.html');
+                                  },
                               ),
                             ],
                           ),
